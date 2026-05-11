@@ -2,7 +2,8 @@ import math
 import random
 import sys
 import pygame
-
+from stable_baselines3 import PPO
+import numpy as np
 
 WIDTH = 1000
 HEIGHT = 600
@@ -27,6 +28,26 @@ RIGHT_X = WIDTH - PADDLE_MARGIN - PADDLE_W
 
 DASH_H = 14
 DASH_GAP = 10
+
+MODEL_PATH = "output/ppo_baseline.zip"
+ppo_model = PPO.load(MODEL_PATH)
+
+def get_agent_action(ball, right):
+    if ppo_model is not None:
+        obs = np.array([
+            ball.x / WIDTH * 2 - 1,
+            ball.y / HEIGHT * 2 - 1,
+            ball.vx / BALL_SPEED_X,
+            ball.vy / BALL_SPEED_Y,
+            right.center_y / HEIGHT * 2 - 1
+        ], dtype=np.float32)
+        action, _ = ppo_model.predict(obs, deterministic=True)
+        c_min = BORDER + PADDLE_H / 2
+        c_max = HEIGHT - BORDER - PADDLE_H / 2
+        target_y = (action[0] + 1.0) / 2.0 * (c_max - c_min) + c_min
+        return float(target_y)
+    else:
+        return random_agent_action()
 
 
 def clamp(v, lo, hi):
@@ -154,7 +175,9 @@ def main():
             right.y = clamp(right.y, BORDER, HEIGHT - BORDER - PADDLE_H)
         else:
             if agent_can_act:
-                right.target_y = random_agent_action()
+                print("Agent is acting")
+                right.target_y = get_agent_action(ball, right)
+                print("Agent target y: ", right.target_y)
                 agent_can_act = False
 
         # -------- UPDATE --------

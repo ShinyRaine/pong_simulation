@@ -1,0 +1,6 @@
+output/
+__pycache__/
+pong_tb/
+ai/
+*.zip
+*.pdf
