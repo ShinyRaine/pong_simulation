@@ -86,9 +86,9 @@ class PongEnv(gym.Env):
                 reward += 10.0
                 terminated = True
             elif self.ball.x > WIDTH:
-                # miss_norm = (min_dist / (HEIGHT / 2)
-                #              if min_dist != float("inf") else 1.0)
-                # reward += -1.0 - 0.5 * miss_norm
+                miss_norm = (min_dist / (HEIGHT / 2)
+                             if min_dist != float("inf") else 1.0)
+                reward += -1.0 - 0.5 * miss_norm
                 reward -= 1.0
                 terminated = True
 
@@ -141,8 +141,8 @@ def train():
     print("Training PPO...")
     model.learn(total_timesteps=1_000_000)
 
-    model.save("ppo_baseline0")
-    print("\nDone. Saved ppo_baseline0.zip")
+    model.save("ppo_mlp")
+    print("\nDone. Saved ppo_mlp.zip")
 
 
 if __name__ == "__main__":

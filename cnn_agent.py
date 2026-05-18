@@ -4,6 +4,8 @@ import sys
 import pygame
 from stable_baselines3 import PPO
 import numpy as np
+import cv2
+from collections import deque
 
 WIDTH = 1000
 HEIGHT = 600
@@ -29,9 +31,46 @@ RIGHT_X = WIDTH - PADDLE_MARGIN - PADDLE_W
 DASH_H = 14
 DASH_GAP = 10
 
+C_MIN = BORDER + PADDLE_H / 2
+C_MAX = HEIGHT - BORDER - PADDLE_H / 2
+
+print("Loading CNN Model...")
+try:
+    cnn_ppo_model = PPO.load("output/ppo_cnn_fs")
+except:
+    cnn_ppo_model = None
+    print("Warning: Model not found. Using random agent.")
+
+frame_stack = deque(maxlen=4)
+
+def process_screen(screen):
+    surface_array = pygame.surfarray.array3d(screen)
+    frame = np.transpose(surface_array, (1, 0, 2))
+    gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+    resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
+    return resized
+
+def get_cnn_agent_action(screen):
+    if cnn_ppo_model is None:
+        return random_agent_action()
+
+    current_frame = process_screen(screen)
+    frame_stack.append(current_frame)
+
+    if len(frame_stack) < 4:
+        return HEIGHT / 2
+
+    obs = np.stack(frame_stack, axis=-1)
+
+    action, _ = cnn_ppo_model.predict(obs, deterministic=True)
+
+    a = float(np.clip(action[0], -1.0, 1.0))
+    target_y = (a + 1.0) / 2.0 * (C_MAX - C_MIN) + C_MIN
+    
+    return target_y
+
 def clamp(v, lo, hi):
     return max(lo, min(hi, v))
-
 
 # -------------------- OBJECTS -------------------- #
 class Paddle:
@@ -75,9 +114,7 @@ class Ball:
         self.x = WIDTH / 2
         self.y = random.uniform(HEIGHT * 0.2, HEIGHT * 0.8)
 
-        # always toward player (right)
         self.vx = abs(BALL_SPEED_X)
-
         vy = random.uniform(-BALL_SPEED_Y, BALL_SPEED_Y)
         if abs(vy) < 1.5:
             vy = 1.5 if vy >= 0 else -1.5
@@ -90,7 +127,6 @@ class Ball:
         if self.y <= BORDER or self.y >= HEIGHT - BORDER:
             self.vy *= -1
 
-
 # -------------------- AI -------------------- #
 def unbeatable_ai(paddle, ball):
     if ball.vx < 0:
@@ -101,40 +137,32 @@ def unbeatable_ai(paddle, ball):
 def random_agent_action():
     return random.uniform(BORDER, HEIGHT - BORDER)
 
-
 # -------------------- DRAW -------------------- #
 def draw_background(screen):
     screen.fill(BG)
-
     pygame.draw.rect(screen, FG, (0, 0, WIDTH, BORDER))
     pygame.draw.rect(screen, FG, (0, HEIGHT - BORDER, WIDTH, BORDER))
-
-    # dashed midline
     x = WIDTH // 2
     y = BORDER + 10
     while y < HEIGHT - BORDER:
         pygame.draw.rect(screen, FG, (x - 2, y, 4, DASH_H))
         y += DASH_H + DASH_GAP
 
-
 # -------------------- MAIN -------------------- #
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Pong RL Environment")
+    pygame.display.set_caption("Pong CNN Model Inference")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 60)
 
     left = Paddle(LEFT_X, HEIGHT / 2)
     right = Paddle(RIGHT_X, HEIGHT / 2)
-
     ball = Ball()
 
     left_score = 0
     right_score = 0
-
-    agent_can_act = False
-    first_phase = True  # <-- tracking phase
+    first_phase = True
 
     running = True
     while running:
@@ -144,64 +172,47 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        # -------- LEFT AI --------
+        draw_background(screen)
+        pygame.draw.rect(screen, FG, left.rect)
+        pygame.draw.rect(screen, FG, right.rect)
+        pygame.draw.rect(screen, FG, ball.rect)
+
         unbeatable_ai(left, ball)
 
-        # -------- RIGHT (AGENT LOGIC) --------
         if first_phase:
-            # perfect alignment (no motion delay)
             right.y = ball.center_y - PADDLE_H / 2
             right.y = clamp(right.y, BORDER, HEIGHT - BORDER - PADDLE_H)
+            right.target_y = ball.center_y
         else:
-            if agent_can_act:
-                print("Agent is acting")
-                right.target_y = random_agent_action(ball, right)
-                print("Agent target y: ", right.target_y)
-                agent_can_act = False
+            right.target_y = get_cnn_agent_action(screen)
 
-        # -------- UPDATE --------
         left.update()
         right.update()
         ball.update()
 
-        # -------- COLLISIONS --------
         if ball.rect.colliderect(left.rect):
             ball.vx = abs(ball.vx)
 
         if ball.rect.colliderect(right.rect):
             ball.vx = -abs(ball.vx)
-
             if first_phase:
-                # after first hit → switch to RL mode
                 first_phase = False
-                agent_can_act = True
-            else:
-                agent_can_act = True
 
-        # -------- SCORE --------
         if ball.x < 0:
             right_score += 1
             ball.reset()
             first_phase = True
-            agent_can_act = False
+            frame_stack.clear()
 
         elif ball.x > WIDTH:
             left_score += 1
             ball.reset()
             first_phase = True
-            agent_can_act = False
+            frame_stack.clear() # 得分后清空历史画面
 
-        # -------- DRAW --------
-        draw_background(screen)
-
-        pygame.draw.rect(screen, FG, left.rect)
-        pygame.draw.rect(screen, FG, right.rect)
-        pygame.draw.rect(screen, FG, ball.rect)
-
-        # score
+        # -------- 5. 绘制得分并刷新屏幕 --------
         left_s = font.render(str(left_score), True, FG)
         right_s = font.render(str(right_score), True, FG)
-
         screen.blit(left_s, (WIDTH // 2 - 120, 20))
         screen.blit(right_s, (WIDTH // 2 + 60, 20))
 
@@ -209,7 +220,6 @@ def main():
 
     pygame.quit()
     sys.exit()
-
 
 if __name__ == "__main__":
     main()
