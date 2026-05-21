@@ -149,7 +149,7 @@ def train():
     eval_venv = SubprocVecEnv([make_env(i + 100) for i in range(8)])
     eval_venv = VecMonitor(eval_venv)
 
-    stop_train_callback = StopTrainingOnRewardThreshold(reward_threshold=20.0, verbose=1)
+    stop_train_callback = StopTrainingOnRewardThreshold(reward_threshold=9.0, verbose=1)
 
     eval_callback = EvalCallback(
         eval_venv, 
