@@ -36,7 +36,7 @@ C_MAX = HEIGHT - BORDER - PADDLE_H / 2
 
 print("Loading CNN Model...")
 try:
-    cnn_ppo_model = PPO.load("output/ppo_cnn_dis")
+    cnn_ppo_model = PPO.load("output/ppo_cnn_lr")
 except:
     cnn_ppo_model = None
     print("Warning: Model not found. Using random agent.")
@@ -49,30 +49,6 @@ def process_screen(screen):
     gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
     resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
     return resized
-
-def get_cnn_agent_action(screen, paddle):
-    if cnn_ppo_model is None:
-        return random_agent_action()
-
-    current_frame = process_screen(screen)
-    frame_stack.append(current_frame)
-
-    if len(frame_stack) < 4:
-        return paddle.center_y
-
-    obs = np.stack(frame_stack, axis=-1)
-
-    action, _ = cnn_ppo_model.predict(obs, deterministic=True)
-    
-    # Extract integer action
-    action_val = int(action.item() if isinstance(action, np.ndarray) else action)
-
-    if action_val == 1:  # UP
-        return paddle.center_y - HEIGHT
-    elif action_val == 2:  # DOWN
-        return paddle.center_y + HEIGHT
-    else:  # 0 or STAY
-        return paddle.center_y
 
 def clamp(v, lo, hi):
     return max(lo, min(hi, v))
@@ -167,7 +143,9 @@ def main():
 
     left_score = 0
     right_score = 0
+    
     first_phase = True
+    agent_can_act = False
 
     running = True
     while running:
@@ -177,24 +155,19 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        draw_background(screen)
-        pygame.draw.rect(screen, FG, left.rect)
-        pygame.draw.rect(screen, FG, right.rect)
-        pygame.draw.rect(screen, FG, ball.rect)
-
+        # -------- UPDATE POSITIONS --------
         unbeatable_ai(left, ball)
 
         if first_phase:
             right.y = ball.center_y - PADDLE_H / 2
             right.y = clamp(right.y, BORDER, HEIGHT - BORDER - PADDLE_H)
             right.target_y = ball.center_y
-        else:
-            right.target_y = get_cnn_agent_action(screen, right)
 
         left.update()
         right.update()
         ball.update()
 
+        # -------- COLLISIONS --------
         if ball.rect.colliderect(left.rect):
             ball.vx = abs(ball.vx)
 
@@ -202,20 +175,55 @@ def main():
             ball.vx = -abs(ball.vx)
             if first_phase:
                 first_phase = False
+                agent_can_act = True
+            else:
+                agent_can_act = True
 
+        # -------- SCORE --------
         if ball.x < 0:
             right_score += 1
             ball.reset()
             first_phase = True
+            agent_can_act = False
             frame_stack.clear()
-
         elif ball.x > WIDTH:
             left_score += 1
             ball.reset()
             first_phase = True
-            frame_stack.clear() # 得分后清空历史画面
+            agent_can_act = False
+            frame_stack.clear()
 
-        # -------- 5. 绘制得分并刷新屏幕 --------
+        # -------- RENDER FOR CNN --------
+        # We must draw the raw screen (without scores) to process the frame
+        draw_background(screen)
+        pygame.draw.rect(screen, FG, left.rect)
+        pygame.draw.rect(screen, FG, right.rect)
+        pygame.draw.rect(screen, FG, ball.rect)
+
+        # Record the frame after objects are updated and collisions resolved
+        current_frame = process_screen(screen)
+        frame_stack.append(current_frame)
+
+        # -------- AGENT ACTION --------
+        if agent_can_act:
+            if len(frame_stack) == 4:
+                obs = np.stack(frame_stack, axis=-1)
+                # Expand dims to add batch size: (1, 84, 84, 4)
+                # Note: Stable Baselines handles single obs automatically in predict() 
+                # if it's the right shape, but let's be sure. predict(obs) is usually fine.
+                if cnn_ppo_model is not None:
+                    action, _ = cnn_ppo_model.predict(obs, deterministic=True)
+                    target_y = float((action[0] + 1.0) / 2.0 * (C_MAX - C_MIN) + C_MIN)
+                else:
+                    target_y = random_agent_action()
+            else:
+                target_y = right.center_y
+                
+            print(f"Agent is acting, target_y: {target_y:.2f}")
+            right.target_y = target_y
+            agent_can_act = False
+
+        # -------- DRAW UI & FLIP --------
         left_s = font.render(str(left_score), True, FG)
         right_s = font.render(str(right_score), True, FG)
         screen.blit(left_s, (WIDTH // 2 - 120, 20))

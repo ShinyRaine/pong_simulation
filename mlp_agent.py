@@ -29,7 +29,7 @@ RIGHT_X = WIDTH - PADDLE_MARGIN - PADDLE_W
 DASH_H = 14
 DASH_GAP = 10
 
-MODEL_PATH = "output/ppo_baseline"
+MODEL_PATH = "output/ppo_mlp_lr"
 ppo_model = PPO.load(MODEL_PATH)
 
 def get_agent_action(ball, right):

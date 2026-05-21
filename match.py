@@ -17,6 +17,7 @@ import sys
 import numpy as np
 import pygame
 import cv2
+from collections import deque
 
 from stable_baselines3 import PPO
 
@@ -104,33 +105,28 @@ class MLPAgent:
 
 
 class CNNAgent:
-    """Plays either side. Maintains last_left_hit_obs in *its* reference frame.
-
-    Important: 'left hit' for this agent means the OPPONENT's paddle hit, i.e.
-    the paddle on the LEFT side of the agent's view. If the agent plays right
-    naturally, that's the actual left paddle. If the agent plays left, we
-    mirror, and 'left hit' becomes the actual right paddle hit.
-    """
+    """Plays either side. Maintains frame stack in *its* reference frame."""
     def __init__(self, model_path: str, side: str):
         assert side in ("left", "right")
         self.model = PPO.load(model_path)
         self.side = side
         self.mirror = (side == "left")
-        self.last_opp_hit_obs = None     # opponent-side hit (from this agent's view)
+        self.frame_stack = deque(maxlen=4)
 
     def reset_state(self):
-        self.last_opp_hit_obs = None
+        self.frame_stack.clear()
 
-    def on_opponent_hit(self, left, right, ball):
-        """Called when the OPPONENT (this agent's opponent) just hit the ball.
-        For right-side CNN this means left paddle hit; for left-side CNN it
-        means right paddle hit."""
-        self.last_opp_hit_obs = _render_obs_84(left, right, ball, mirror_x=self.mirror)
+    def record_frame(self, left, right, ball):
+        """Called every tick to record the current frame."""
+        frame = _render_obs_84(left, right, ball, mirror_x=self.mirror)
+        self.frame_stack.append(frame)
 
     def act(self, left, right, ball):
-        current = _render_obs_84(left, right, ball, mirror_x=self.mirror)
-        old = self.last_opp_hit_obs if self.last_opp_hit_obs is not None else current
-        obs = np.stack([old, current], axis=0)            # (2, 84, 84)
+        if len(self.frame_stack) < 4:
+            my = left if self.side == "left" else right
+            return my.center_y
+            
+        obs = np.stack(self.frame_stack, axis=-1)
         action, _ = self.model.predict(obs, deterministic=True)
         a = float(np.clip(action[0], -1.0, 1.0))
         return (a + 1.0) / 2.0 * (C_MAX - C_MIN) + C_MIN
@@ -237,21 +233,21 @@ def main():
         # -------- collisions --------
         if ball.rect.colliderect(left.rect):
             ball.vx = abs(ball.vx)
-            # CNN on right side sees this as an "opponent hit" → capture for its channel 0
-            if isinstance(right_agent, CNNAgent):
-                right_agent.on_opponent_hit(left, right, ball)
             if first_phase_left:
                 first_phase_left = False
             left_can_act = True
 
         if ball.rect.colliderect(right.rect):
             ball.vx = -abs(ball.vx)
-            # CNN on left side sees this as its "opponent hit"
-            if isinstance(left_agent, CNNAgent):
-                left_agent.on_opponent_hit(left, right, ball)
             if first_phase_right:
                 first_phase_right = False
             right_can_act = True
+
+        # -------- record frames for CNN --------
+        if isinstance(left_agent, CNNAgent):
+            left_agent.record_frame(left, right, ball)
+        if isinstance(right_agent, CNNAgent):
+            right_agent.record_frame(left, right, ball)
 
         # -------- score --------
         if ball.x < 0:
