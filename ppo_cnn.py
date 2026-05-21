@@ -154,7 +154,7 @@ def train():
     eval_callback = EvalCallback(
         eval_venv, 
         callback_on_new_best=stop_train_callback, 
-        eval_freq=1250, 
+        eval_freq=500, 
         n_eval_episodes=100, 
         best_model_save_path='./logs/best_cnn/', 
         verbose=1
