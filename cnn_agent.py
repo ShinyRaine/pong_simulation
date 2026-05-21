@@ -36,7 +36,7 @@ C_MAX = HEIGHT - BORDER - PADDLE_H / 2
 
 print("Loading CNN Model...")
 try:
-    cnn_ppo_model = PPO.load("output/ppo_cnn_fs")
+    cnn_ppo_model = PPO.load("output/ppo_cnn_dis")
 except:
     cnn_ppo_model = None
     print("Warning: Model not found. Using random agent.")
@@ -50,7 +50,7 @@ def process_screen(screen):
     resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
     return resized
 
-def get_cnn_agent_action(screen):
+def get_cnn_agent_action(screen, paddle):
     if cnn_ppo_model is None:
         return random_agent_action()
 
@@ -58,16 +58,21 @@ def get_cnn_agent_action(screen):
     frame_stack.append(current_frame)
 
     if len(frame_stack) < 4:
-        return HEIGHT / 2
+        return paddle.center_y
 
     obs = np.stack(frame_stack, axis=-1)
 
     action, _ = cnn_ppo_model.predict(obs, deterministic=True)
-
-    a = float(np.clip(action[0], -1.0, 1.0))
-    target_y = (a + 1.0) / 2.0 * (C_MAX - C_MIN) + C_MIN
     
-    return target_y
+    # Extract integer action
+    action_val = int(action.item() if isinstance(action, np.ndarray) else action)
+
+    if action_val == 1:  # UP
+        return paddle.center_y - HEIGHT
+    elif action_val == 2:  # DOWN
+        return paddle.center_y + HEIGHT
+    else:  # 0 or STAY
+        return paddle.center_y
 
 def clamp(v, lo, hi):
     return max(lo, min(hi, v))
@@ -184,7 +189,7 @@ def main():
             right.y = clamp(right.y, BORDER, HEIGHT - BORDER - PADDLE_H)
             right.target_y = ball.center_y
         else:
-            right.target_y = get_cnn_agent_action(screen)
+            right.target_y = get_cnn_agent_action(screen, right)
 
         left.update()
         right.update()

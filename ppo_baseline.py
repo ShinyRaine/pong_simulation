@@ -3,7 +3,8 @@ import numpy as np
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize, VecMonitor
+from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.utils import set_random_seed
 from pong import Paddle, Ball, unbeatable_ai, clamp, \
     WIDTH, HEIGHT, BORDER, PADDLE_W, PADDLE_H, LEFT_X, RIGHT_X, BALL_SPEED_X, BALL_SPEED_Y
@@ -121,6 +122,21 @@ def train():
     check_env(env)
 
     venv = SubprocVecEnv([make_env(i) for i in range(8)])
+    venv = VecMonitor(venv)
+
+    eval_venv = SubprocVecEnv([make_env(i + 100) for i in range(8)])
+    eval_venv = VecMonitor(eval_venv)
+
+    stop_train_callback = StopTrainingOnRewardThreshold(reward_threshold=9.0, verbose=1)
+
+    eval_callback = EvalCallback(
+        eval_venv, 
+        callback_on_new_best=stop_train_callback, 
+        eval_freq=1250, 
+        n_eval_episodes=100, 
+        best_model_save_path='./logs/best_baseline/', 
+        verbose=1
+    )
 
     model = PPO(
         "MlpPolicy",
@@ -139,7 +155,7 @@ def train():
     )
 
     print("Training PPO...")
-    model.learn(total_timesteps=1_000_000)
+    model.learn(total_timesteps=1_000_000, callback=eval_callback)
 
     model.save("ppo_baseline0")
     print("\nDone. Saved ppo_baseline0.zip")

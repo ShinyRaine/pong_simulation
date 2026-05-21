@@ -154,9 +154,7 @@ def main():
             right.y = clamp(right.y, BORDER, HEIGHT - BORDER - PADDLE_H)
         else:
             if agent_can_act:
-                print("Agent is acting")
-                right.target_y = random_agent_action(ball, right)
-                print("Agent target y: ", right.target_y)
+                right.target_y = random_agent_action()
                 agent_can_act = False
 
         # -------- UPDATE --------

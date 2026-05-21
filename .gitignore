@@ -1,6 +1,11 @@
 output/
 __pycache__/
 pong_tb/
-ai/
+pong_tb_cnn/
+PPO_mlp/
+PPO_MLP5m/
+PPO_mlp6/
+PPO_mlp/
+logs/
 *.zip
 *.pdf
