@@ -149,7 +149,7 @@ def train():
         gae_lambda=0.95,
         clip_range=0.2,
         ent_coef=0.01,
-        policy_kwargs=dict(net_arch=[64, 64]),
+        policy_kwargs=dict(net_arch=[128,128,128]),
         verbose=1,
         tensorboard_log="./pong_tb/",
     )
