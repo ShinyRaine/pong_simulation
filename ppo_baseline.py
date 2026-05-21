@@ -151,14 +151,14 @@ def train():
         ent_coef=0.01,
         policy_kwargs=dict(net_arch=[128,128,128]),
         verbose=1,
-        tensorboard_log="./pong_tb/",
+        tensorboard_log="./pong_tb/500fq",
     )
 
     print("Training PPO...")
     model.learn(total_timesteps=5_000_000, callback=eval_callback)
 
-    model.save("ppo_baseline0")
-    print("\nDone. Saved ppo_baseline0.zip")
+    model.save("ppo_500fq")
+    print("\nDone. Saved ppo_500fq.zip")
 
 
 if __name__ == "__main__":

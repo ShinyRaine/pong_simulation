@@ -172,14 +172,14 @@ def train():
         clip_range=0.1,
         ent_coef=0.01,
         verbose=1,
-        tensorboard_log="./pong_tb_cnn/",
+        tensorboard_log="./pong_tb_cnn/500fq",
     )
 
     print("Training PPO...")
     model.learn(total_timesteps=5_000_000, callback=eval_callback)
 
-    model.save("ppo_cnn")
-    print("\nDone. Saved ppo_cnn.zip")
+    model.save("ppo_cnn_500fq")
+    print("\nDone. Saved ppo_cnn_500fq.zip")
 
 
 if __name__ == "__main__":
