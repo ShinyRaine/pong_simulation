@@ -155,11 +155,11 @@ def train():
     eval_venv = SubprocVecEnv([make_env(i + 100) for i in range(8)])
     eval_venv = VecMonitor(eval_venv)
 
-    stop_train_callback = StopTrainingOnRewardThreshold(reward_threshold=9.0, verbose=1)
+    # stop_train_callback = StopTrainingOnRewardThreshold(reward_threshold=9.0, verbose=1)
 
     eval_callback = EvalCallback(
         eval_venv, 
-        callback_on_new_best=stop_train_callback, 
+        # callback_on_new_best=stop_train_callback, 
         eval_freq=500, 
         n_eval_episodes=100, 
         best_model_save_path='./logs/best_cnn/', 
@@ -182,10 +182,10 @@ def train():
     )
 
     print("Training PPO...")
-    model.learn(total_timesteps=5_000_000, callback=eval_callback)
+    model.learn(total_timesteps=1_000_000, callback=eval_callback)
 
-    model.save("ppo_cnn_500fq")
-    print("\nDone. Saved ppo_cnn_500fq.zip")
+    model.save("ppo_cnn_1M")
+    print("\nDone. Saved ppo_cnn_1M.zip")
 
 
 if __name__ == "__main__":
