@@ -130,6 +130,12 @@ class PongEnv(gym.Env):
         
         return self._get_obs(), reward, terminated, truncated, {}
 
+from typing import Callable
+def exp_schedule(initial_value: float, decay_rate: float = 0.95) -> Callable[[float], float]:
+    def func(progress_remaining: float) -> float:
+        return initial_value * (decay_rate ** ((1.0 - progress_remaining) * 10)) 
+    return func
+
 def make_env(rank: int, seed: int = 0):
     def _init():
         env = PongEnv()
@@ -166,7 +172,7 @@ def train():
         n_steps=512,
         batch_size=512,
         n_epochs=10,
-        learning_rate=1e-4,
+        learning_rate=exp_schedule(1e-4),
         gamma=0.99,
         gae_lambda=0.95,
         clip_range=0.1,
