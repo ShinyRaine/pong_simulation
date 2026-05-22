@@ -179,14 +179,14 @@ def train():
         ent_coef=0.01,
         policy_kwargs=dict(net_arch=[128, 128, 128]), 
         verbose=1,
-        tensorboard_log="./pong_tb_cnn/2M",
+        tensorboard_log="./pong_tb_cnn1M",
     )
 
     print("Training PPO...")
-    model.learn(total_timesteps=2_000_000, callback=eval_callback)
+    model.learn(total_timesteps=1_000_000, callback=eval_callback)
 
-    model.save("ppo_cnn_2M")
-    print("\nDone. Saved ppo_cnn_2M.zip")
+    model.save("ppo_cnn_1M")
+    print("\nDone. Saved ppo_cnn_1M.zip")
 
 
 if __name__ == "__main__":
