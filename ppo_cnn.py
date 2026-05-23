@@ -61,6 +61,9 @@ class PongEnv(gym.Env):
         terminated = False
         min_dist = float("inf")
 
+        physics_step_counter = 0
+        frame_skip = 3
+
         while not self.agent_can_act and not terminated:
             unbeatable_ai(self.left, self.ball)
 
@@ -95,7 +98,13 @@ class PongEnv(gym.Env):
             elif self.ball.x > WIDTH:
                 reward -= 1.0
                 terminated = True
-                
+            
+            if physics_step_counter % (frame_skip + 1) == 0 or terminated:
+                self.frames.append(self._get_gray_frame())
+
+            physics_step_counter += 1
+
+        if physics_step_counter % (frame_skip + 1) != 0 and not terminated:
             self.frames.append(self._get_gray_frame())
 
         return reward, terminated
@@ -179,14 +188,14 @@ def train():
         ent_coef=0.01,
         # policy_kwargs=dict(net_arch=[128, 128, 128]), 
         verbose=1,
-        tensorboard_log="./pong_tb_cnn1M_v2",
+        tensorboard_log="./pong_tb_cnn1M_skip",
     )
 
     print("Training PPO...")
     model.learn(total_timesteps=1_000_000, callback=eval_callback)
 
-    model.save("pong_tb_cnn1M_v2")
-    print("\nDone. Saved pong_tb_cnn1M_v2.zip")
+    model.save("pong_tb_cnn1M_skip")
+    print("\nDone. Saved pong_tb_cnn1M_skip.zip")
 
 
 if __name__ == "__main__":
