@@ -8,18 +8,18 @@ thinks it's playing on the right side.
 
 Run:
     python match.py
-    python match.py --mlp my_mlp.zip --cnn my_cnn.zip --fps 30
+    python3 match.py --mlp output/ppo_mlp_elr --cnn output/ppo_cnn_stop --fps 30
     python match.py --swap     # MLP on right, CNN on left
 """
 
 import argparse
 import sys
 import numpy as np
-import pygame
-import cv2
 from collections import deque
+import pygame
 
 from stable_baselines3 import PPO
+import cv2
 
 from pong import (
     Paddle, Ball, clamp,
@@ -91,7 +91,14 @@ class MLPAgent:
     """Plays either side. Internally always thinks it's the right paddle."""
     def __init__(self, model_path: str, side: str):
         assert side in ("left", "right")
-        self.model = PPO.load(model_path)
+        
+        # Override the pickled lr_schedule to avoid cloudpickle segmentation faults
+        custom_objects = {
+            "learning_rate": 0.0,
+            "lr_schedule": lambda _: 0.0,
+            "clip_range": lambda _: 0.1,
+        }
+        self.model = PPO.load(model_path, custom_objects=custom_objects)
         self.side = side                 # which paddle this agent controls
         self.mirror = (side == "left")   # mirror obs if on left
 
@@ -108,7 +115,12 @@ class CNNAgent:
     """Plays either side. Maintains frame stack in *its* reference frame."""
     def __init__(self, model_path: str, side: str):
         assert side in ("left", "right")
-        self.model = PPO.load(model_path)
+        custom_objects = {
+            "learning_rate": 0.0,
+            "lr_schedule": lambda _: 0.0,
+            "clip_range": lambda _: 0.1,
+        }
+        self.model = PPO.load(model_path, custom_objects=custom_objects)
         self.side = side
         self.mirror = (side == "left")
         self.frame_stack = deque(maxlen=4)
@@ -137,8 +149,8 @@ class CNNAgent:
 # ====================================================================== #
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mlp", default="ppo_pong_simple.zip")
-    parser.add_argument("--cnn", default="ppo_pong_cnn_pygame.zip")
+    parser.add_argument("--mlp", default="output/ppo_mlp_elr.zip")
+    parser.add_argument("--cnn", default="output/ppo_cnn_stop.zip")
     parser.add_argument("--fps", type=int, default=60)
     parser.add_argument("--swap", action="store_true",
                         help="Put MLP on right, CNN on left (default: opposite)")

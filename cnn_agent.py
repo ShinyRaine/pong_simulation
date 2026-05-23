@@ -36,7 +36,12 @@ C_MAX = HEIGHT - BORDER - PADDLE_H / 2
 
 print("Loading CNN Model...")
 try:
-    cnn_ppo_model = PPO.load("output/ppo_cnn_lr")
+    custom_objects = {
+        "learning_rate": 0.0,
+        "lr_schedule": lambda _: 0.0,
+        "clip_range": lambda _: 0.1,
+    }
+    cnn_ppo_model = PPO.load("output/ppo_cnn_1M", custom_objects=custom_objects)
 except:
     cnn_ppo_model = None
     print("Warning: Model not found. Using random agent.")

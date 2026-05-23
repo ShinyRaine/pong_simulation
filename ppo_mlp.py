@@ -3,7 +3,8 @@ import numpy as np
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize, VecMonitor
+from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.utils import set_random_seed
 from pong import Paddle, Ball, unbeatable_ai, clamp, \
     WIDTH, HEIGHT, BORDER, PADDLE_W, PADDLE_H, LEFT_X, RIGHT_X, BALL_SPEED_X, BALL_SPEED_Y
@@ -86,9 +87,9 @@ class PongEnv(gym.Env):
                 reward += 10.0
                 terminated = True
             elif self.ball.x > WIDTH:
-                miss_norm = (min_dist / (HEIGHT / 2)
-                             if min_dist != float("inf") else 1.0)
-                reward += -1.0 - 0.5 * miss_norm
+                # miss_norm = (min_dist / (HEIGHT / 2)
+                #              if min_dist != float("inf") else 1.0)
+                # reward += -1.0 - 0.5 * miss_norm
                 reward -= 1.0
                 terminated = True
 
@@ -107,6 +108,12 @@ class PongEnv(gym.Env):
         
         return self._get_obs(), reward, terminated, truncated, {}
 
+from typing import Callable
+def exp_schedule(initial_value: float, decay_rate: float = 0.95) -> Callable[[float], float]:
+    def func(progress_remaining: float) -> float:
+        return initial_value * (decay_rate ** ((1.0 - progress_remaining) * 10)) 
+    return func
+
 def make_env(rank: int, seed: int = 0):
     def _init():
         env = PongEnv()
@@ -121,6 +128,21 @@ def train():
     check_env(env)
 
     venv = SubprocVecEnv([make_env(i) for i in range(8)])
+    venv = VecMonitor(venv)
+
+    eval_venv = SubprocVecEnv([make_env(i + 100) for i in range(8)])
+    eval_venv = VecMonitor(eval_venv)
+
+    # stop_train_callback = StopTrainingOnRewardThreshold(reward_threshold=9.0, verbose=1)
+
+    eval_callback = EvalCallback(
+        eval_venv, 
+        # callback_on_new_best=stop_train_callback, 
+        eval_freq=500, 
+        n_eval_episodes=100, 
+        best_model_save_path='./logs/best_baseline/', 
+        verbose=1
+    )
 
     model = PPO(
         "MlpPolicy",
@@ -128,21 +150,21 @@ def train():
         n_steps=512,
         batch_size=256,
         n_epochs=10,
-        learning_rate=3e-4,
+        learning_rate=exp_schedule(3e-4),
         gamma=0.99,
         gae_lambda=0.95,
         clip_range=0.2,
         ent_coef=0.01,
-        policy_kwargs=dict(net_arch=[64, 64]),
+        policy_kwargs=dict(net_arch=[128,128,128]),
         verbose=1,
-        tensorboard_log="./pong_tb/",
+        tensorboard_log="./pong_tb/2M",
     )
 
     print("Training PPO...")
-    model.learn(total_timesteps=1_000_000)
+    model.learn(total_timesteps=1_000_000, callback=eval_callback)
 
-    model.save("ppo_mlp")
-    print("\nDone. Saved ppo_mlp.zip")
+    model.save("ppo_mlp_1M")
+    print("\nDone. Saved ppo_mlp_1M.zip")
 
 
 if __name__ == "__main__":
