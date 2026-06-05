@@ -105,6 +105,7 @@ def run_headless_test_cnn(num_episodes=100, max_hits=100):
     print("="*40)
 
     # 绘制结果图表
+    plt.rcParams.update({'font.size': 18}) # Increase font size for better readability
     plt.figure(figsize=(12, 6))
     plt.bar(range(1, num_episodes + 1), hit_counts, color='mediumseagreen', alpha=0.7)
     plt.axhline(y=np.mean(hit_counts), color='red', linestyle='--', label=f'Mean: {np.mean(hit_counts):.2f}')
@@ -113,9 +114,10 @@ def run_headless_test_cnn(num_episodes=100, max_hits=100):
     plt.ylabel('Hit Counts')
     plt.legend()
     plt.grid(axis='y', alpha=0.3)
+    plt.savefig('cnn_test_results.pdf', bbox_inches='tight') # Save as PDF for LaTeX
     plt.savefig('cnn_test_results.png', dpi=300, bbox_inches='tight')
     plt.close()
-    print("📈 Plot saved as cnn_test_results.png\n")
+    print("📈 Plot saved as cnn_test_results.pdf and cnn_test_results.png\n")
 
 if __name__ == "__main__":
     run_headless_test_cnn(100, max_hits=100)
